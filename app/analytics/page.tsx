@@ -2,84 +2,111 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, TrendingUp, Users, Zap, Activity, RefreshCw } from 'lucide-react';
+import { ArrowLeft, BarChart3, TrendingUp, Users, Zap, Activity, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [dataSource, setDataSource] = useState<'live' | 'error'>('live');
+  const [error, setError] = useState<string | null>(null);
   
   const [migrationData, setMigrationData] = useState([
-    { name: 'Mon', migrations: 12, value: 45000 },
-    { name: 'Tue', migrations: 19, value: 72000 },
-    { name: 'Wed', migrations: 15, value: 58000 },
-    { name: 'Thu', migrations: 28, value: 95000 },
-    { name: 'Fri', migrations: 22, value: 81000 },
-    { name: 'Sat', migrations: 31, value: 112000 },
-    { name: 'Sun', migrations: 25, value: 89000 },
+    { name: 'Mon', migrations: 0, value: 0 },
+    { name: 'Tue', migrations: 0, value: 0 },
+    { name: 'Wed', migrations: 0, value: 0 },
+    { name: 'Thu', migrations: 0, value: 0 },
+    { name: 'Fri', migrations: 0, value: 0 },
+    { name: 'Sat', migrations: 0, value: 0 },
+    { name: 'Sun', migrations: 0, value: 0 },
   ]);
 
   const [contractData, setContractData] = useState([
-    { name: 'Vault', count: 15 },
-    { name: 'Token', count: 23 },
-    { name: 'NFT', count: 12 },
-    { name: 'DEX', count: 8 },
-    { name: 'Staking', count: 17 },
+    { name: 'Token', count: 0 },
+    { name: 'System', count: 0 },
+    { name: 'Smart Contract', count: 0 },
   ]);
 
   const [stats, setStats] = useState({
-    totalMigrations: 152,
-    totalValue: 552000,
-    successRate: 98.7,
-    activeUsers: 89,
+    totalMigrations: 0,
+    totalValue: 0,
+    successRate: 100,
+    activeUsers: 0,
   });
 
-  const [recentMigrations, setRecentMigrations] = useState([
-    { id: 1, type: 'Vault Contract', from: '0x7a2...4b5c', to: '8Kx9...mP3L', value: '$12,450', time: '2 min ago', status: 'success' },
-    { id: 2, type: 'Token Migration', from: '0x3b1...9c7d', to: '5Mx2...qR8N', value: '$8,730', time: '5 min ago', status: 'success' },
-    { id: 3, type: 'NFT Collection', from: '0x9c4...2e1f', to: '3Nz7...wT4M', value: '$25,100', time: '12 min ago', status: 'success' },
-    { id: 4, type: 'Staking Contract', from: '0x5e7...8d3a', to: '7Pw5...kL9Q', value: '$45,890', time: '18 min ago', status: 'pending' },
-    { id: 5, type: 'DEX Contract', from: '0x1f2...6b9e', to: '2Qx8...vY3H', value: '$67,250', time: '24 min ago', status: 'success' },
-  ]);
+  const [recentMigrations, setRecentMigrations] = useState<any[]>([]);
 
-  // Simulate real-time data updates
+  // Fetch live data from Solana
   const fetchAnalytics = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     
     try {
-      // Simulate API call - add random variance to simulate live data
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Fetch live data from API
+      const response = await fetch('/api/analytics');
+      const result = await response.json();
       
-      // Update stats with random variations
-      setStats(prev => ({
-        totalMigrations: prev.totalMigrations + Math.floor(Math.random() * 3),
-        totalValue: prev.totalValue + Math.floor(Math.random() * 50000),
-        successRate: Math.min(99.9, prev.successRate + (Math.random() * 0.2 - 0.1)),
-        activeUsers: prev.activeUsers + Math.floor(Math.random() * 5 - 2),
-      }));
-
-      // Add new migration if random
-      if (Math.random() > 0.7) {
-        const newMigration = {
-          id: Date.now(),
-          type: ['Vault Contract', 'Token Migration', 'NFT Collection', 'Staking Contract', 'DEX Contract'][Math.floor(Math.random() * 5)],
-          from: `0x${Math.random().toString(36).substring(2, 5)}...${Math.random().toString(36).substring(2, 6)}`,
-          to: `${Math.floor(Math.random() * 9) + 1}${Math.random().toString(36).substring(2, 4).toUpperCase()}...${Math.random().toString(36).substring(2, 6)}`,
-          value: `$${(Math.random() * 50000 + 5000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`,
-          time: 'just now',
-          status: Math.random() > 0.1 ? 'success' : 'pending',
-        };
-        setRecentMigrations(prev => [newMigration, ...prev.slice(0, 9)]);
+      if (result.success && result.data) {
+        const data = result.data;
+        
+        // Update stats from live data
+        setStats({
+          totalMigrations: data.totalTransactions,
+          totalValue: data.totalVolume,
+          successRate: data.successRate,
+          activeUsers: data.activeAccounts,
+        });
+        
+        // Update daily volume chart
+        setMigrationData(data.dailyVolume.map((day: any) => ({
+          name: day.name,
+          migrations: day.transactions,
+          value: day.value * 1000 // Scale for better visualization
+        })));
+        
+        // Update program distribution
+        setContractData(data.programDistribution);
+        
+        // Format recent transactions for display
+        const formattedTransactions = data.recentTransactions.map((tx: any, index: number) => ({
+          id: index,
+          type: tx.type,
+          from: tx.from.slice(0, 8) + '...',
+          to: tx.to.slice(0, 8) + '...',
+          value: `${tx.value.toFixed(4)} SOL`,
+          time: getTimeAgo(tx.timestamp),
+          status: tx.status,
+          signature: tx.signature
+        }));
+        
+        setRecentMigrations(formattedTransactions);
+        setDataSource('live');
+        setError(null);
+      } else {
+        throw new Error(result.error || 'Failed to fetch live data');
       }
 
       setLastUpdate(new Date());
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch analytics:', error);
+      setDataSource('error');
+      setError(error.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+  
+  // Helper function to format time
+  const getTimeAgo = (timestamp: number): string => {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''} ago`;
   };
 
   useEffect(() => {
@@ -109,6 +136,39 @@ export default function AnalyticsPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Live Data Status Banner */}
+        <div className={`mb-6 p-4 rounded-lg flex items-center justify-between ${
+          dataSource === 'live' ? 'bg-green-900/20 border border-green-500/30' : 'bg-red-900/20 border border-red-500/30'
+        }`}>
+          <div className="flex items-center gap-3">
+            {dataSource === 'live' ? (
+              <>
+                <Wifi className="w-5 h-5 text-green-400" />
+                <div>
+                  <p className="text-green-300 font-semibold">Live Solana Data</p>
+                  <p className="text-green-200/80 text-sm">Fetching real-time blockchain data from Solana mainnet</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-5 h-5 text-red-400" />
+                <div>
+                  <p className="text-red-300 font-semibold">Unable to fetch live data</p>
+                  <p className="text-red-200/80 text-sm">{error || 'Connection error'}</p>
+                </div>
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => fetchAnalytics(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-white ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="text-white text-sm">Refresh</span>
+          </button>
+        </div>
+
         {/* Stats Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard

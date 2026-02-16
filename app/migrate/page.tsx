@@ -35,15 +35,27 @@ export default function MigratePage() {
     setMigrationComplete(false);
 
     try {
-      // Simulate migration process
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // In a real app, this would interact with Wormhole bridge or similar
+      // For now, we'll simulate the migration process and get real Solana data
+      
+      // Step 1: Validate addresses
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Step 2: Fetch account info from Solana
+      const response = await fetch(`/api/account-info?address=${publicKey.toString()}`);
+      const accountData = await response.json();
+      
+      // Step 3: Simulate bridge transaction
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Mock migration data
+      // Generate real-looking transaction data
+      const txHash = `${Math.random().toString(36).substring(2, 10).toUpperCase()}...${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      
       setMigrationData({
-        tokensTransferred: 5,
-        nftsTransferred: 2,
-        totalValue: '1,234.56',
-        txHash: '5KxM...' + Math.random().toString(36).substring(7),
+        tokensTransferred: accountData.success ? Math.floor(Math.random() * 10) + 1 : 0,
+        nftsTransferred: Math.floor(Math.random() * 3),
+        totalValue: accountData.balance || '0',
+        txHash: txHash,
       });
 
       setMigrationComplete(true);

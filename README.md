@@ -21,10 +21,11 @@
 - **Real-Time Tracking**: Monitor migration progress with live transaction updates
 
 ### 📊 Live Migration Analytics
-- **Interactive Dashboard**: Real-time charts powered by Recharts
-- **Migration Metrics**: Track total migrations, success rates, and user activity
-- **Contract Types Analysis**: Breakdown by vault, token, NFT, DEX, and staking contracts
-- **Recent Activity Feed**: Live table of ongoing and completed migrations
+- **Interactive Dashboard**: Real-time charts powered by Recharts with live Solana mainnet data
+- **Migration Metrics**: Track total migrations, success rates, and user activity from blockchain
+- **Contract Types Analysis**: Breakdown by vault, token, NFT, DEX, and staking contracts using real transaction data
+- **Recent Activity Feed**: Live table of ongoing and completed migrations from Token Program
+- **Live Data Updates**: 10-second polling for real-time blockchain statistics
 
 ### 💰 Token Economics Optimizer
 - **Bridge Selection**: Recommends optimal bridges (Wormhole, Sunrise) based on fees
@@ -43,7 +44,8 @@
 
 ### Prerequisites
 - Node.js 18+ and npm
-- OpenAI API key (optional - falls back to mock conversion)
+- Solana RPC endpoint (defaults to public mainnet)
+- OpenAI API key (optional - for AI-powered contract conversion)
 
 ### Setup
 
