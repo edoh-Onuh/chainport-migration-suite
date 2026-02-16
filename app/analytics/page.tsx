@@ -9,8 +9,9 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [dataSource, setDataSource] = useState<'live' | 'error'>('live');
+  const [dataSource, setDataSource] = useState<'live' | 'cache' | 'error'>('live');
   const [error, setError] = useState<string | null>(null);
+  const [cacheInfo, setCacheInfo] = useState<string | null>(null);
   
   const [migrationData, setMigrationData] = useState([
     { name: 'Mon', migrations: 0, value: 0 },
@@ -80,7 +81,16 @@ export default function AnalyticsPage() {
         }));
         
         setRecentMigrations(formattedTransactions);
-        setDataSource('live');
+        
+        // Update data source based on response
+        if (result.source === 'cache' || result.source === 'stale-cache') {
+          setDataSource('cache');
+          setCacheInfo(result.source === 'stale-cache' ? 'Using cached data (RPC busy)' : `Cached (${Math.floor((result.expiresIn || 0) / 1000)}s)`);
+        } else {
+          setDataSource('live');
+          setCacheInfo(null);
+        }
+        
         setError(null);
       } else {
         throw new Error(result.error || 'Failed to fetch live data');
@@ -112,8 +122,8 @@ export default function AnalyticsPage() {
   useEffect(() => {
     fetchAnalytics();
     
-    // Poll for updates every 10 seconds
-    const interval = setInterval(() => fetchAnalytics(), 10000);
+    // Poll for updates every 30 seconds (reduced from 10s to avoid rate limits)
+    const interval = setInterval(() => fetchAnalytics(), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -138,23 +148,33 @@ export default function AnalyticsPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Live Data Status Banner */}
         <div className={`mb-6 p-4 rounded-lg flex items-center justify-between ${
-          dataSource === 'live' ? 'bg-green-900/20 border border-green-500/30' : 'bg-red-900/20 border border-red-500/30'
+          dataSource === 'error' ? 'bg-red-900/20 border border-red-500/30' : 
+          dataSource === 'cache' ? 'bg-blue-900/20 border border-blue-500/30' :
+          'bg-green-900/20 border border-green-500/30'
         }`}>
           <div className="flex items-center gap-3">
-            {dataSource === 'live' ? (
+            {dataSource === 'error' ? (
               <>
-                <Wifi className="w-5 h-5 text-green-400" />
+                <WifiOff className="w-5 h-5 text-red-400" />
                 <div>
-                  <p className="text-green-300 font-semibold">Live Solana Data</p>
-                  <p className="text-green-200/80 text-sm">Fetching real-time blockchain data from Solana mainnet</p>
+                  <p className="text-red-300 font-semibold">Connection Error</p>
+                  <p className="text-red-200/80 text-sm">{error || 'Unable to fetch blockchain data'}</p>
+                </div>
+              </>
+            ) : dataSource === 'cache' ? (
+              <>
+                <Wifi className="w-5 h-5 text-blue-400" />
+                <div>
+                  <p className="text-blue-300 font-semibold">Cached Data</p>
+                  <p className="text-blue-200/80 text-sm">{cacheInfo || 'Using cached blockchain data to reduce RPC load'}</p>
                 </div>
               </>
             ) : (
               <>
-                <WifiOff className="w-5 h-5 text-red-400" />
+                <Wifi className="w-5 h-5 text-green-400" />
                 <div>
-                  <p className="text-red-300 font-semibold">Unable to fetch live data</p>
-                  <p className="text-red-200/80 text-sm">{error || 'Connection error'}</p>
+                  <p className="text-green-300 font-semibold">Live Solana Data</p>
+                  <p className="text-green-200/80 text-sm">Real-time blockchain data from Solana mainnet</p>
                 </div>
               </>
             )}

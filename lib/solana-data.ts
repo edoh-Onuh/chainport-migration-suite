@@ -108,8 +108,8 @@ export async function getLiveAnalytics(): Promise<LiveAnalyticsData> {
   try {
     const conn = getConnection();
     
-    // Fetch recent transactions
-    const recentTxs = await getRecentTransactions(50);
+    // Fetch fewer transactions to reduce RPC load (10 instead of 50)
+    const recentTxs = await getRecentTransactions(10);
     
     // Calculate stats
     const successfulTxs = recentTxs.filter(tx => tx.status === 'success');
