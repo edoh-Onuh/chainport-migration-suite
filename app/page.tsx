@@ -259,7 +259,7 @@ export default function HomePage() {
           </p>
           {publicKey ? (
             <Link 
-              href="/convert"
+              href="/migrate"
               className="btn-primary inline-flex items-center gap-2 shadow-lg shadow-yellow-500/50"
               aria-label="Start your migration"
             >
