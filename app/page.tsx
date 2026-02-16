@@ -16,6 +16,32 @@ export default function HomePage() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  // Admin: Reset stats with Ctrl+Shift+R
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+        e.preventDefault();
+        if (confirm('Reset all statistics? This will clear conversion history.')) {
+          localStorage.removeItem('contractsMigrated');
+          localStorage.removeItem('walletsConnected');
+          localStorage.removeItem('successfulMigrations');
+          localStorage.removeItem('totalMigrations');
+          localStorage.removeItem('connectedWallets');
+          setStats({
+            contractsMigrated: 0,
+            walletsConnected: 0,
+            successRate: 100,
+            totalValue: 0,
+          });
+          alert('✅ Statistics reset successfully!');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
   // Fetch live stats from localStorage and simulate real-time data
   useEffect(() => {
     const fetchStats = () => {
