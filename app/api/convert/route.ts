@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     // Use OpenAI to convert Solidity to Rust/Anchor
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-4o',
       messages: [
         {
           role: 'system',
