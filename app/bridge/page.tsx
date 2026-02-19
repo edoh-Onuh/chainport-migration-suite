@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
 import {
   ArrowLeft, ArrowDown, Loader2, Check, ExternalLink,
   Shield, Zap, Activity, RefreshCw, ChevronDown, Info,
@@ -26,6 +27,8 @@ const BRIDGE_TOKENS = [
   { symbol: 'WBTC', name: 'Wrapped Bitcoin', decimals: 8, icon: '₿' },
 ];
 
+const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
 interface BridgeEstimate {
   estimatedOutput: string;
   fee: string;
@@ -35,8 +38,10 @@ interface BridgeEstimate {
 }
 
 export default function BridgePage() {
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
   const [mounted, setMounted] = useState(false);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
   const [selectedChain, setSelectedChain] = useState(SUPPORTED_CHAINS[0]);
   const [selectedToken, setSelectedToken] = useState(BRIDGE_TOKENS[0]);
   const [amount, setAmount] = useState('');
@@ -54,7 +59,13 @@ export default function BridgePage() {
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Simulate getting a bridge estimate when amount changes
+  // Fetch real SOL balance from Solana when wallet connects
+  useEffect(() => {
+    if (!publicKey) { setSolBalance(null); return; }
+    connection.getBalance(publicKey).then(b => setSolBalance(b / 1e9)).catch(() => {});
+  }, [publicKey, connection]);
+
+  // Get bridge estimate when amount changes
   useEffect(() => {
     if (!amount || parseFloat(amount) <= 0) {
       setEstimate(null);
@@ -91,19 +102,42 @@ export default function BridgePage() {
     setBridgeComplete(false);
 
     try {
-      // Simulate bridge transaction via Sunrise
-      await new Promise(r => setTimeout(r, 3000));
+      // Record bridge intent on Solana via Memo Program — creates a real,
+      // verifiable on-chain transaction with the bridge metadata.
+      const bridgeMemo = JSON.stringify({
+        app: 'SolBridge',
+        action: 'bridge',
+        from: selectedChain.id,
+        to: 'solana',
+        token: selectedToken.symbol,
+        amount,
+        recipient: publicKey.toString(),
+        sunrise: true,
+        ts: Date.now(),
+      });
+
+      const memoIx = new TransactionInstruction({
+        keys: [{ pubkey: publicKey, isSigner: true, isWritable: true }],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(bridgeMemo),
+      });
+
+      const tx = new Transaction().add(memoIx);
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction(signature, 'confirmed');
 
       const numAmount = parseFloat(amount);
       const fee = numAmount * 0.001;
-      const txHash = `${Math.random().toString(36).substring(2, 10).toUpperCase()}…${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
 
       setBridgeResult({
-        txHash,
+        txHash: signature,
         amountReceived: (numAmount - fee).toFixed(4),
         token: selectedToken.symbol,
       });
       setBridgeComplete(true);
+
+      // Refresh real on-chain balance
+      connection.getBalance(publicKey).then(b => setSolBalance(b / 1e9)).catch(() => {});
 
       // Track migration
       const tm = parseInt(localStorage.getItem('totalMigrations') || '0') + 1;
@@ -111,7 +145,7 @@ export default function BridgePage() {
       localStorage.setItem('totalMigrations', tm.toString());
       localStorage.setItem('successfulMigrations', sm.toString());
     } catch {
-      // Error handling
+      // User may have rejected the wallet transaction
     } finally {
       setIsBridging(false);
     }
@@ -216,11 +250,14 @@ export default function BridgePage() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-green-500/20 flex items-center justify-center">
                 <span className="text-lg">◎</span>
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-white">Solana</div>
                 <div className="text-xs text-gray-500 font-mono truncate max-w-[280px]">
                   {publicKey ? publicKey.toString() : 'Connect wallet →'}
                 </div>
+                {solBalance !== null && (
+                  <div className="text-xs text-green-400 mt-0.5 font-medium">{solBalance.toFixed(4)} SOL</div>
+                )}
               </div>
             </div>
           </div>

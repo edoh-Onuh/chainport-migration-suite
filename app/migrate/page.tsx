@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
 import {
   ArrowLeft, Wallet, ArrowDown, Loader2, Check, AlertTriangle,
   ExternalLink, Shield, Zap, Activity, Info, ArrowRight
@@ -11,13 +12,18 @@ import {
 
 const STEPS = ['Connect Wallets', 'Review Assets', 'Confirm Migration'];
 
+const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
 function isValidEvmAddress(addr: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(addr);
 }
 
 export default function MigratePage() {
-  const { publicKey } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
   const [mounted, setMounted] = useState(false);
+  const [solBalance, setSolBalance] = useState<number | null>(null);
+  const [walletTokens, setWalletTokens] = useState<number>(0);
   const [evmAddress, setEvmAddress] = useState('');
   const [evmTouched, setEvmTouched] = useState(false);
   const [isMigrating, setIsMigrating] = useState(false);
@@ -32,6 +38,24 @@ export default function MigratePage() {
   } | null>(null);
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Fetch real wallet data from Solana
+  useEffect(() => {
+    if (!publicKey) { setSolBalance(null); setWalletTokens(0); return; }
+    const fetchWallet = async () => {
+      try {
+        const [balRes, tokRes] = await Promise.all([
+          fetch(`/api/account-info?address=${publicKey.toString()}`),
+          fetch(`/api/wallet-tokens?address=${publicKey.toString()}`),
+        ]);
+        const balData = await balRes.json();
+        const tokData = await tokRes.json();
+        if (balData.success) setSolBalance(balData.data.balance);
+        if (tokData.success) setWalletTokens(tokData.count || 0);
+      } catch (e) { console.error('Wallet fetch error:', e); }
+    };
+    fetchWallet();
+  }, [publicKey]);
 
   // Track step based on form state
   useEffect(() => {
@@ -49,19 +73,47 @@ export default function MigratePage() {
     setMigrationComplete(false);
 
     try {
-      await new Promise(r => setTimeout(r, 1000));
-      const res = await fetch(`/api/account-info?address=${publicKey.toString()}`);
-      const accountData = await res.json();
-      await new Promise(r => setTimeout(r, 2000));
+      // Fetch real on-chain account data
+      const [accRes, tokRes] = await Promise.all([
+        fetch(`/api/account-info?address=${publicKey.toString()}`),
+        fetch(`/api/wallet-tokens?address=${publicKey.toString()}`),
+      ]);
+      const accountData = await accRes.json();
+      const tokData = await tokRes.json();
+      const tokenCount = tokData.success ? (tokData.count || 0) : 0;
 
-      const txHash = `${Math.random().toString(36).substring(2, 10).toUpperCase()}…${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+      // Record migration on Solana via Memo Program — real on-chain transaction
+      const migrationMemo = JSON.stringify({
+        app: 'SolBridge',
+        action: 'migration',
+        evmSource: evmAddress,
+        solDest: publicKey.toString(),
+        tokens: tokenCount,
+        sol: accountData.success ? accountData.data.balance : 0,
+        ts: Date.now(),
+      });
+
+      const memoIx = new TransactionInstruction({
+        keys: [{ pubkey: publicKey, isSigner: true, isWritable: true }],
+        programId: MEMO_PROGRAM_ID,
+        data: Buffer.from(migrationMemo),
+      });
+
+      const tx = new Transaction().add(memoIx);
+      const signature = await sendTransaction(tx, connection);
+      await connection.confirmTransaction(signature, 'confirmed');
+
       setMigrationData({
-        tokensTransferred: accountData.success ? Math.floor(Math.random() * 10) + 1 : 0,
-        nftsTransferred: Math.floor(Math.random() * 3),
-        totalValue: accountData.balance || '0',
-        txHash,
+        tokensTransferred: tokenCount,
+        nftsTransferred: 0,
+        totalValue: accountData.success ? accountData.data.balance.toString() : '0',
+        txHash: signature,
       });
       setMigrationComplete(true);
+
+      // Refresh balance
+      const newBal = await connection.getBalance(publicKey);
+      setSolBalance(newBal / 1e9);
 
       const tm = parseInt(localStorage.getItem('totalMigrations') || '0') + 1;
       const sm = parseInt(localStorage.getItem('successfulMigrations') || '0') + 1;
@@ -150,8 +202,19 @@ export default function MigratePage() {
           {/* Destination */}
           <div className="mb-6">
             <label className="text-xs text-gray-500 mb-1.5 block">Destination Solana Address</label>
-            <div className="p-4 bg-black/40 border border-white/10 rounded-xl font-mono text-sm text-gray-400 truncate">
-              {publicKey ? publicKey.toString() : 'Connect wallet above →'}
+            <div className="p-4 bg-black/40 border border-white/10 rounded-xl">
+              <div className="font-mono text-sm text-gray-400 truncate">
+                {publicKey ? publicKey.toString() : 'Connect wallet above →'}
+              </div>
+              {solBalance !== null && (
+                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-xs text-gray-500">On-chain balance</span>
+                  <span className="text-xs font-bold text-green-400">{solBalance.toFixed(4)} SOL</span>
+                </div>
+              )}
+              {walletTokens > 0 && (
+                <div className="text-[10px] text-gray-600 mt-1">{walletTokens} SPL token{walletTokens !== 1 ? 's' : ''} detected on Solana</div>
+              )}
             </div>
           </div>
 

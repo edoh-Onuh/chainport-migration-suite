@@ -24,6 +24,7 @@ export default function AnalyticsPage() {
   const [programData, setProgramData] = useState<{ name: string; count: number }[]>([]);
   const [stats, setStats] = useState({ total: 0, volume: 0, successRate: 100, accounts: 0 });
   const [recentTxs, setRecentTxs] = useState<any[]>([]);
+  const [networkStats, setNetworkStats] = useState<{ tps: number; slot: number; blockTime: number } | null>(null);
 
   const fetchAnalytics = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -73,6 +74,20 @@ export default function AnalyticsPage() {
     const interval = setInterval(() => fetchAnalytics(), 30000);
     return () => clearInterval(interval);
   }, [fetchAnalytics]);
+
+  // Fetch real Solana network stats (TPS, slot, block time)
+  useEffect(() => {
+    const fetchNetworkStats = async () => {
+      try {
+        const res = await fetch('/api/network-stats');
+        const data = await res.json();
+        if (data.success) setNetworkStats({ tps: data.tps, slot: data.slot, blockTime: data.blockTime });
+      } catch (e) { console.error('Network stats error:', e); }
+    };
+    fetchNetworkStats();
+    const interval = setInterval(fetchNetworkStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const timeAgo = (ts: number) => {
     const s = Math.floor((Date.now() - ts) / 1000);
@@ -289,7 +304,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <span className="text-lg">🌅</span>
-              <h3 className="text-sm font-semibold text-gray-300">Sunrise Migration Metrics</h3>
+              <h3 className="text-sm font-semibold text-gray-300">Solana Network × Sunrise</h3>
             </div>
             <a href="https://www.sunrisedefi.com/" target="_blank" rel="noopener noreferrer" className="text-[10px] text-orange-400 hover:text-orange-300 flex items-center gap-1 transition-colors">
               sunrisedefi.com <ExternalLink className="w-3 h-3" />
@@ -297,10 +312,10 @@ export default function AnalyticsPage() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
             {[
-              { label: 'INX Price', value: '$0.01', change: '+12.5%', positive: true },
-              { label: 'Bridges Today', value: '1,247', change: '+8.3%', positive: true },
-              { label: 'Chains Supported', value: '6+', change: 'EVM', positive: true },
-              { label: 'Total Bridged', value: '$4.2M', change: '24h volume', positive: true },
+              { label: 'Network TPS', value: networkStats ? networkStats.tps.toLocaleString() : '—', change: 'Live from Solana', positive: true },
+              { label: 'Current Slot', value: networkStats ? networkStats.slot.toLocaleString() : '—', change: 'Real-time', positive: true },
+              { label: 'Block Time', value: networkStats ? `${networkStats.blockTime}ms` : '—', change: 'Average', positive: true },
+              { label: 'Chains Supported', value: '6+', change: 'EVM → Solana', positive: true },
             ].map((m, i) => (
               <div key={i} className="p-4 rounded-xl bg-black/30 border border-white/5">
                 <div className="text-[11px] text-gray-500 mb-1">{m.label}</div>

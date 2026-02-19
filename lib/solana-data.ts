@@ -183,3 +183,40 @@ export async function getAccountInfo(address: string) {
     return null;
   }
 }
+
+/**
+ * Fetch SPL token accounts for a wallet.
+ * Uses getParsedTokenAccountsByOwner — 1 RPC call.
+ */
+export interface TokenAccountInfo {
+  mint: string;
+  balance: number;
+  decimals: number;
+  amount: string;
+}
+
+export async function getWalletTokenAccounts(address: string): Promise<TokenAccountInfo[]> {
+  try {
+    const pubkey = new PublicKey(address);
+    const conn = getConnection();
+
+    const tokenAccounts = await conn.getParsedTokenAccountsByOwner(pubkey, {
+      programId: new PublicKey(TOKEN_PROGRAM),
+    });
+
+    return tokenAccounts.value
+      .map(account => {
+        const info = account.account.data.parsed.info;
+        return {
+          mint: info.mint as string,
+          balance: (info.tokenAmount.uiAmount as number) || 0,
+          decimals: info.tokenAmount.decimals as number,
+          amount: (info.tokenAmount.uiAmountString as string) || '0',
+        };
+      })
+      .filter(t => t.balance > 0);
+  } catch (error) {
+    console.error('getWalletTokenAccounts error:', error);
+    return [];
+  }
+}
